@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #F5F5F7;
+  color: #1D1D1F;
+  -webkit-font-smoothing: antialiased;
+}
+
+.premium-glass {
+  @apply bg-white/65 backdrop-blur-xl border border-white/40 shadow-sm;
+}
+
+.premium-card {
+  @apply bg-white/80 backdrop-blur-lg border border-white/60 shadow-[0_4px_20px_rgba(0,0,0,0.03)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)] hover:border-white/90;
+}
+
+.hero-text-gradient {
+  background: linear-gradient(135deg, #111827 0%, #4B5563 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
