@@ -26,7 +26,7 @@ export default function Landing() {
           <Link href="https://mose.kookmin.ac.kr/mose/index.do" target="_blank" className="hover:text-black transition-colors">Solutions</Link>
           <Link href="https://mose.kookmin.ac.kr/mose/index.do" target="_blank" className="hover:text-black transition-colors">Lab Website</Link>
         </div>
-        <Link href="/dashboard">
+        <Link href="/login">
             <button className="bg-black text-white text-sm font-medium px-5 py-2.5 rounded-full hover:bg-gray-800 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-gray-200">
                 Sign In
             </button>
@@ -63,7 +63,7 @@ export default function Landing() {
             transition={{ delay: 0.4, duration: 0.6 }}
             className="flex flex-col sm:flex-row gap-4"
         >
-          <Link href="/dashboard">
+          <Link href="/login">
               <button className="px-8 py-4 bg-blue-600 text-white rounded-full font-semibold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 hover:-translate-y-1 w-full sm:w-auto">
                 System Access &rarr;
               </button>
