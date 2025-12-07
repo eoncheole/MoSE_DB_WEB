@@ -1,26 +1,60 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { ShieldCheck, Shield, Cpu, Search, SlidersHorizontal, ChevronRight, Sparkles, Loader2, LogOut, User, Settings } from 'lucide-react';
+import { ShieldCheck, Shield, Cpu, Search, SlidersHorizontal, ChevronRight, Sparkles, Loader2, LogOut, User, Settings, Plus } from 'lucide-react';
 import ThreatChart from '@/components/dashboard/ThreatChart';
 import Footer from '@/components/layout/Footer';
 import DetailPanel from '@/components/dashboard/DetailPanel';
+import CreateCveModal from '@/components/dashboard/CreateCveModal';
 
 export default function Dashboard() {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
   const [cveList, setCveList] = useState([]);
   const [fullData, setFullData] = useState([]); // 검색 필터링을 위한 원본 데이터
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCve, setSelectedCve] = useState(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null); // Initialize state
+
+  const handleCveCreated = (newCve) => {
+    const mapped = {
+        id: newCve.cve_id,
+        severity: newCve.severity,
+        asset: newCve.asset
+    };
+    setFullData(prev => [mapped, ...prev]);
+    if (searchTerm === '') {
+        setCveList(prev => [mapped, ...prev]);
+    }
+  };
 
   // --- Fetch Data from Backend ---
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 개발 환경에서는 localhost:8000을 직접 호출 (Docker 환경에서는 서비스명 사용)
+        const token = localStorage.getItem('token'); // Get token
+
+        // 1. Fetch User Info if token exists
+        if (token) {
+            try {
+                const userRes = await fetch('http://localhost:8000/users/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (userRes.ok) {
+                    const userData = await userRes.json();
+                    setCurrentUser(userData);
+                }
+            } catch (e) {
+                console.error("Failed to fetch user", e);
+            }
+        }
+
+        // 2. Fetch CVEs
         const res = await fetch('http://localhost:8000/cves/');
         if (!res.ok) throw new Error('Failed to fetch data');
         const data = await res.json();
@@ -44,6 +78,11 @@ export default function Dashboard() {
 
     fetchData();
   }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    router.push('/login');
+  };
 
   const handleSearch = (e) => {
     const term = e.target.value;
@@ -95,17 +134,20 @@ export default function Dashboard() {
                     {isProfileOpen && (
                         <div className="absolute right-0 mt-3 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50 animate-in fade-in slide-in-from-top-2">
                             <div className="px-4 py-2 border-b border-gray-50 mb-1">
-                                <p className="text-sm font-bold text-gray-900">Demo User</p>
-                                <p className="text-xs text-gray-500">admin@mose.lab</p>
+                                <p className="text-sm font-bold text-gray-900">{currentUser?.full_name || 'User'}</p>
+                                <p className="text-xs text-gray-500 truncate">{currentUser?.email || 'Loading...'}</p>
                             </div>
-                            <button className="w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-2 transition-colors">
+                            <Link href="/dashboard/settings?tab=profile" className="w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-2 transition-colors">
                                 <User className="w-4 h-4" /> Profile
-                            </button>
-                            <button className="w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-2 transition-colors">
+                            </Link>
+                            <Link href="/dashboard/settings?tab=preferences" className="w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-2 transition-colors">
                                 <Settings className="w-4 h-4" /> Settings
-                            </button>
+                            </Link>
                             <div className="h-px bg-gray-50 my-1"></div>
-                            <button className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors">
+                            <button 
+                                onClick={handleLogout}
+                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
+                            >
                                 <LogOut className="w-4 h-4" /> Logout
                             </button>
                         </div>
@@ -198,6 +240,13 @@ export default function Dashboard() {
                     <button className="p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
                         <SlidersHorizontal className="w-5 h-5" />
                     </button>
+                    <button 
+                        onClick={() => setIsCreateModalOpen(true)}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 hover:shadow-xl transition-all"
+                    >
+                        <Plus className="w-4 h-4" />
+                        <span className="hidden md:inline">Add</span>
+                    </button>
                 </div>
             </div>
             <div className="overflow-x-auto">
@@ -262,6 +311,12 @@ export default function Dashboard() {
         isOpen={!!selectedCve} 
         onClose={() => setSelectedCve(null)} 
         cve={selectedCve} 
+      />
+      
+      <CreateCveModal 
+        isOpen={isCreateModalOpen} 
+        onClose={() => setIsCreateModalOpen(false)} 
+        onCreated={handleCveCreated} 
       />
     </div>
   );
