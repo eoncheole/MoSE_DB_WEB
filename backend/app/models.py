@@ -12,3 +12,13 @@ class CVE(Base):
     description = Column(String)                      # 상세 설명
     status = Column(String, default="Active")         # Active, Resolved
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+    full_name = Column(String, nullable=True)
+    role = Column(String, default="user") # user, admin
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
