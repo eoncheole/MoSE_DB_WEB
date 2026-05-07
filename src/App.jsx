@@ -1,27 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
+import Graph from './pages/Graph';
 import Settings from './pages/Settings';
+import { clearToken, fetchMe, getToken } from './lib/api';
 
 function App() {
-  // Initialize login state
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return localStorage.getItem('mose_auth') === 'true';
-  });
-
-  // View state: 'dashboard' or 'settings'
+  // Optimistically logged-in if a token is present, then verify against
+  // /users/me. If the token is stale/invalid, clear it and bounce to landing.
+  const [isLoggedIn, setIsLoggedIn] = useState(() => !!getToken());
   const [currentView, setCurrentView] = useState('dashboard');
 
+  useEffect(() => {
+    if (!getToken()) return;
+    let cancelled = false;
+    fetchMe()
+      .then(() => { if (!cancelled) setIsLoggedIn(true); })
+      .catch(() => {
+        if (cancelled) return;
+        clearToken();
+        setIsLoggedIn(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
   const handleLogin = () => {
-    localStorage.setItem('mose_auth', 'true');
     setIsLoggedIn(true);
     setCurrentView('dashboard');
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('mose_auth');
+    clearToken();
     setIsLoggedIn(false);
-    setCurrentView('dashboard'); // Reset view on logout
+    setCurrentView('dashboard');
   };
 
   const handleNavigate = (view) => {
@@ -37,15 +48,22 @@ function App() {
         ) : (
           <>
             {currentView === 'dashboard' && (
-              <Dashboard 
-                onLogout={handleLogout} 
-                onNavigate={handleNavigate} 
+              <Dashboard
+                onLogout={handleLogout}
+                onNavigate={handleNavigate}
+              />
+            )}
+            {currentView === 'graph' && (
+              <Graph
+                onLogout={handleLogout}
+                onNavigate={handleNavigate}
               />
             )}
             {currentView === 'settings' && (
-              <Settings 
-                onLogout={handleLogout} 
-                onBack={() => handleNavigate('dashboard')} 
+              <Settings
+                onLogout={handleLogout}
+                onBack={() => handleNavigate('dashboard')}
+                onNavigate={handleNavigate}
               />
             )}
           </>
