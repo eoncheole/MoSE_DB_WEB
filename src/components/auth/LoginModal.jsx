@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Lock, User, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import clsx from 'clsx';
+import { login } from '../../lib/api';
 
 const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
@@ -31,18 +32,17 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-
-    // Simulate network delay for realism
-    setTimeout(() => {
-      // Accept 'mose' or 'mose@kookmin.ac.kr'
-      if ((formData.email === 'mose' || formData.email === 'mose@kookmin.ac.kr') && formData.password === 'password') {
-        setIsLoading(false);
-        onLoginSuccess();
-      } else {
-        setIsLoading(false);
-        setError('Invalid credentials. Try mose / password');
-      }
-    }, 1500);
+    try {
+      await login(formData.email.trim(), formData.password);
+      setIsLoading(false);
+      onLoginSuccess();
+    } catch (err) {
+      setIsLoading(false);
+      // The default seed admin is admin/admin — surface that hint when the
+      // server says credentials are wrong.
+      const isCreds = err.status === 401;
+      setError(isCreds ? `${err.message} (default admin: admin / admin)` : err.message);
+    }
   };
 
   return (
@@ -92,7 +92,7 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
                     value={formData.email}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
                     className="w-full bg-gray-50/50 border border-gray-200 rounded-xl py-3 pl-12 pr-4 text-sm font-medium text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition-all outline-none"
-                    placeholder="mose"
+                    placeholder="admin"
                   />
                 </div>
               </div>
