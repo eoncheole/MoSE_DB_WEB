@@ -1,10 +1,10 @@
-fastapi
+fastapi              # works with pydantic v1 via internal compat shim
 uvicorn[standard]
 sqlalchemy
 alembic
 celery
 redis
-pydantic
+pydantic<2           # code uses orm_mode and from_orm (v1 API). MUST stay v1.
 python-dotenv
 passlib[bcrypt]
 bcrypt==4.0.1
