@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import Graph from './pages/Graph';
+import Import from './pages/Import';
 import Settings from './pages/Settings';
 import { clearToken, fetchMe, getToken } from './lib/api';
 
@@ -55,6 +56,12 @@ function App() {
             )}
             {currentView === 'graph' && (
               <Graph
+                onLogout={handleLogout}
+                onNavigate={handleNavigate}
+              />
+            )}
+            {currentView === 'import' && (
+              <Import
                 onLogout={handleLogout}
                 onNavigate={handleNavigate}
               />
