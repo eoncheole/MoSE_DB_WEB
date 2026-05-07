@@ -1,19 +1,33 @@
-import React, { useMemo, useState } from 'react';
-import { ChevronRight, Search, SlidersHorizontal, ShieldCheck, SearchX } from 'lucide-react';
-import { cveData } from '../../data/cveData';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ChevronRight, Search, SlidersHorizontal, ShieldCheck, SearchX, AlertOctagon, RefreshCw } from 'lucide-react';
+import { fetchCves } from '../../lib/api';
 
 const CveTable = ({ onSelectCve }) => {
   const [query, setQuery] = useState('');
+  const [cves, setCves] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const load = () => {
+    setLoading(true);
+    setError(null);
+    fetchCves({ limit: 200 })
+      .then(setCves)
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return cveData;
-    return cveData.filter((item) =>
-      item.id.toLowerCase().includes(q) ||
-      item.asset?.toLowerCase().includes(q) ||
-      item.severity?.toLowerCase().includes(q)
+    if (!q) return cves;
+    return cves.filter((item) =>
+      item.cve_id?.toLowerCase().includes(q) ||
+      item.severity?.toLowerCase().includes(q) ||
+      item.description?.toLowerCase().includes(q)
     );
-  }, [query]);
+  }, [query, cves]);
 
   const getSeverityColors = (severity) => {
     switch (severity) {
@@ -23,6 +37,14 @@ const CveTable = ({ onSelectCve }) => {
     }
   };
 
+  const headerCopy = error
+    ? 'Could not reach the MoSE DB. Showing cached state.'
+    : loading
+      ? 'Loading vulnerabilities from the MoSE DB…'
+      : query
+        ? `Showing ${filtered.length} of ${cves.length} risks matching "${query}".`
+        : `MoSE DB has identified ${cves.length} potential risks requiring attention.`;
+
   return (
     <div className="premium-card rounded-[2rem] overflow-hidden">
       <div className="p-6 sm:p-8 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -30,14 +52,11 @@ const CveTable = ({ onSelectCve }) => {
           <div className="flex items-center gap-2 mb-1">
             <h2 className="text-xl font-bold text-gray-900">Detected Vulnerabilities</h2>
             <span className="flex items-center gap-1 text-[10px] font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> DB Synced
+              <div className={`w-1.5 h-1.5 rounded-full ${error ? 'bg-red-500' : 'bg-green-500'}`}></div>
+              {error ? 'Offline' : 'DB Synced'}
             </span>
           </div>
-          <p className="text-sm text-gray-500">
-            {query
-              ? `Showing ${filtered.length} of ${cveData.length} risks matching "${query}".`
-              : `MoSE DB has identified ${cveData.length} potential risks requiring attention.`}
-          </p>
+          <p className="text-sm text-gray-500">{headerCopy}</p>
         </div>
 
         <div className="flex gap-3 w-full md:w-auto">
@@ -60,7 +79,23 @@ const CveTable = ({ onSelectCve }) => {
       </div>
 
       <div className="overflow-x-auto">
-        {filtered.length === 0 ? (
+        {error ? (
+          <div className="flex flex-col items-center justify-center text-center px-6 py-16">
+            <div className="p-3 bg-red-50 rounded-full text-red-500 mb-4">
+              <AlertOctagon className="w-6 h-6" />
+            </div>
+            <h3 className="text-sm font-bold text-gray-900">Backend unreachable</h3>
+            <p className="text-xs text-gray-500 mt-1 max-w-sm">{error}</p>
+            <button
+              onClick={load}
+              className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Retry
+            </button>
+          </div>
+        ) : loading ? (
+          <SkeletonRows />
+        ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center px-6 py-16">
             {query ? (
               <>
@@ -69,7 +104,7 @@ const CveTable = ({ onSelectCve }) => {
                 </div>
                 <h3 className="text-sm font-bold text-gray-900">No matches found</h3>
                 <p className="text-xs text-gray-500 mt-1 max-w-xs">
-                  Nothing matched <span className="font-mono">"{query}"</span>. Try a different CVE ID, asset, or severity.
+                  Nothing matched <span className="font-mono">"{query}"</span>. Try a different CVE ID, severity, or keyword.
                 </p>
                 <button
                   onClick={() => setQuery('')}
@@ -91,20 +126,19 @@ const CveTable = ({ onSelectCve }) => {
             )}
           </div>
         ) : (
-          <table className="w-full text-left border-collapse min-w-[800px] md:min-w-0">
+          <table className="w-full text-left border-collapse min-w-[760px] md:min-w-0">
             <thead>
               <tr className="bg-gray-50/30 text-gray-400 text-[11px] font-bold tracking-widest uppercase border-b border-gray-100/50">
                 <th className="px-8 py-5">Status</th>
                 <th className="px-6 py-5">CVE ID</th>
                 <th className="px-6 py-5">Severity</th>
-                <th className="px-6 py-5">Asset</th>
+                <th className="px-6 py-5">CVSS</th>
                 <th className="px-6 py-5"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 text-sm">
               {filtered.map((item, index) => {
                 const colors = getSeverityColors(item.severity);
-                // Only animate the "ping" pulse on Critical rows to reduce visual noise + battery drain
                 const showPing = item.severity === 'Critical';
                 return (
                   <tr
@@ -118,7 +152,7 @@ const CveTable = ({ onSelectCve }) => {
                     }}
                     tabIndex={0}
                     role="button"
-                    aria-label={`Open details for ${item.id}, ${item.severity} severity on ${item.asset}`}
+                    aria-label={`Open details for ${item.cve_id}, ${item.severity} severity, CVSS ${item.cvss ?? 'unknown'}`}
                     className="group hover:bg-blue-50/30 focus:bg-blue-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 transition-all duration-200 cursor-pointer border-b border-gray-50 last:border-0 animate-fade-in"
                     style={{ animationDelay: `${Math.min(index, 8) * 0.04}s` }}
                   >
@@ -130,11 +164,11 @@ const CveTable = ({ onSelectCve }) => {
                           )}
                           <span className={`relative inline-flex rounded-full h-2 w-2 ${colors.dot}`}></span>
                         </span>
-                        <span className="text-xs font-semibold text-gray-500">Active</span>
+                        <span className="text-xs font-semibold text-gray-500">{item.status ?? 'Active'}</span>
                       </div>
                     </td>
                     <td className="px-6 py-5">
-                      <span className="font-mono text-sm font-semibold text-gray-700 group-hover:text-blue-600 transition-colors">{item.id}</span>
+                      <span className="font-mono text-sm font-semibold text-gray-700 group-hover:text-blue-600 transition-colors">{item.cve_id}</span>
                     </td>
                     <td className="px-6 py-5">
                       <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold border ${colors.bg} ${colors.text} ${colors.border}`}>
@@ -142,7 +176,9 @@ const CveTable = ({ onSelectCve }) => {
                       </span>
                     </td>
                     <td className="px-6 py-5">
-                      <span className="text-sm font-medium text-gray-600">{item.asset}</span>
+                      <span className="font-mono text-sm font-semibold text-gray-700">
+                        {item.cvss != null ? item.cvss.toFixed(1) : '—'}
+                      </span>
                     </td>
                     <td className="px-6 py-5 text-right">
                       <div className="w-8 h-8 rounded-full bg-white border border-gray-100 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 shadow-sm transition-all transform group-hover:translate-x-1">
@@ -156,12 +192,28 @@ const CveTable = ({ onSelectCve }) => {
           </table>
         )}
       </div>
-      
+
       <div className="p-4 bg-gray-50/30 text-center">
          <button className="text-xs font-semibold text-gray-400 hover:text-blue-600 transition-colors uppercase tracking-wider py-2">View All History</button>
       </div>
     </div>
   );
 };
+
+const SkeletonRows = () => (
+  <table className="w-full text-left border-collapse min-w-[760px] md:min-w-0" aria-hidden="true">
+    <tbody>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <tr key={i} className="border-b border-gray-50 last:border-0">
+          <td className="px-8 py-5"><div className="h-3 w-16 bg-gray-100 rounded animate-pulse"></div></td>
+          <td className="px-6 py-5"><div className="h-3 w-32 bg-gray-100 rounded animate-pulse"></div></td>
+          <td className="px-6 py-5"><div className="h-5 w-16 bg-gray-100 rounded animate-pulse"></div></td>
+          <td className="px-6 py-5"><div className="h-3 w-10 bg-gray-100 rounded animate-pulse"></div></td>
+          <td className="px-6 py-5"></td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+);
 
 export default CveTable;
