@@ -93,4 +93,9 @@ export const fetchComponents = () => request('/components/');
 export const fetchAttacks = () => request('/attacks/');
 export const fetchLabs = () => request('/labs/');
 
+// --- Bulk import ----------------------------------------------------------
+
+export const importBundle = (bundle) =>
+  request('/import/bundle', { method: 'POST', body: bundle });
+
 export { ApiError };
