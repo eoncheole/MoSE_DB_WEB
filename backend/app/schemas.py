@@ -201,6 +201,50 @@ class GraphOverview(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Bulk import — one bundle = one lab's contribution. Entities reference each
+# other by natural key (component.name, attack.name) so external partners
+# don't need to know our internal numeric ids.
+# ---------------------------------------------------------------------------
+
+class CVEImport(CVEBase):
+    affects: List[str] = Field(default_factory=list)  # component names
+    attacks: List[str] = Field(default_factory=list)  # attack technique names
+
+
+class BundleImport(BaseModel):
+    """Payload shape for POST /import/bundle.
+
+    `lab` is the contributor; if omitted, edges are created without a
+    `contributed_by_lab_id`. Components and attacks listed here get upserted
+    before CVE links are wired so name lookups always resolve.
+    """
+    lab: Optional[LabCreate] = None
+    components: List[ComponentCreate] = Field(default_factory=list)
+    attacks: List[AttackTechniqueCreate] = Field(default_factory=list)
+    cves: List[CVEImport] = Field(default_factory=list)
+
+
+class ImportCounts(BaseModel):
+    labs: int = 0
+    components: int = 0
+    attacks: int = 0
+    cves: int = 0
+
+
+class ImportLinkCounts(BaseModel):
+    cve_affects_component: int = 0
+    cve_uses_attack: int = 0
+
+
+class ImportResult(BaseModel):
+    lab: Optional[Lab] = None
+    created: ImportCounts = Field(default_factory=ImportCounts)
+    updated: ImportCounts = Field(default_factory=ImportCounts)
+    linked: ImportLinkCounts = Field(default_factory=ImportLinkCounts)
+    warnings: List[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
 # Edge create payloads
 # ---------------------------------------------------------------------------
 
