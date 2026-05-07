@@ -70,8 +70,14 @@ const Header = ({ onLogout, onNavigate, currentView = 'dashboard' }) => {
                   <p className="text-xs text-gray-500">mose@kookmin.ac.kr</p>
                 </div>
                 <div className="py-1">
-                  <button 
-                    onClick={() => onNavigate && onNavigate('settings')} 
+                  <button
+                    onClick={() => onNavigate && onNavigate('import')}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    Import Data
+                  </button>
+                  <button
+                    onClick={() => onNavigate && onNavigate('settings')}
                     className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
                     Settings
