@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import Header from '../components/dashboard/Header';
 
-const Settings = ({ onLogout, onBack }) => {
+const Settings = ({ onLogout, onBack, onNavigate }) => {
   const [activeTab, setActiveTab] = useState('general');
   const [isLoading, setIsLoading] = useState(false);
   const [savedAt, setSavedAt] = useState(0);
@@ -40,7 +40,7 @@ const Settings = ({ onLogout, onBack }) => {
 
   return (
     <div className="min-h-screen flex flex-col animate-fade-in bg-[#F5F5F7]">
-      <Header onLogout={onLogout} onNavigate={onBack} /> {/* Pass onBack to allow navigation */}
+      <Header onLogout={onLogout} onNavigate={onNavigate ?? onBack} currentView="settings" />
 
       <main className="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
