@@ -11,7 +11,7 @@ const Dashboard = ({ onLogout, onNavigate }) => {
 
   return (
     <div className="flex flex-col min-h-screen animate-fade-in">
-      <Header onLogout={onLogout} onNavigate={onNavigate} />
+      <Header onLogout={onLogout} onNavigate={onNavigate} currentView="dashboard" />
 
       <main className="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Dashboard Grid */}
