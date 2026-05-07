@@ -11,7 +11,7 @@ Two design choices worth knowing:
    everything the API response needs without N+1 queries.
 """
 
-from typing import List, Optional
+from typing import Dict, List, Optional, Set
 
 from sqlalchemy.orm import Session, joinedload
 
@@ -267,6 +267,147 @@ def get_graph_overview(db: Session, cve_limit: int = 50) -> schemas.GraphOvervie
             ))
 
     return schemas.GraphOverview(nodes=list(nodes.values()), edges=edges)
+
+
+# ---------------------------------------------------------------------------
+# Bulk import — idempotent ingest of a bundle from another lab
+# ---------------------------------------------------------------------------
+
+def import_bundle(db: Session, bundle: schemas.BundleImport) -> schemas.ImportResult:
+    """Upsert a bundle keyed by natural identifiers (name / cve_id).
+
+    Behavior:
+    - Re-running with the same payload is a no-op (created counts return 0).
+    - Existing records get their non-null fields refreshed (updated count).
+    - Unresolved component/attack names referenced by a CVE are reported as
+      warnings rather than errors — partial imports are useful.
+    - The whole import runs in one transaction; any failure rolls back.
+    """
+    created = schemas.ImportCounts()
+    updated = schemas.ImportCounts()
+    linked = schemas.ImportLinkCounts()
+    warnings: List[str] = []
+
+    # ---- Lab (the contributor) -----------------------------------------
+    contributor: Optional[models.Lab] = None
+    if bundle.lab is not None:
+        contributor = get_lab_by_name(db, bundle.lab.name)
+        if contributor:
+            _patch_fields(contributor, bundle.lab.dict(exclude_unset=True), exclude={"name"})
+            updated.labs += 1
+        else:
+            contributor = models.Lab(**bundle.lab.dict())
+            db.add(contributor)
+            db.flush()
+            created.labs += 1
+
+    # ---- Components ----------------------------------------------------
+    component_index: Dict[str, models.Component] = {}
+    for spec in bundle.components:
+        existing = (
+            db.query(models.Component).filter(models.Component.name == spec.name).first()
+        )
+        if existing:
+            _patch_fields(existing, spec.dict(exclude_unset=True), exclude={"name"})
+            updated.components += 1
+            component_index[spec.name] = existing
+        else:
+            data = spec.dict()
+            # If no explicit lab_id was supplied, attribute to the contributor.
+            if data.get("lab_id") is None and contributor is not None:
+                data["lab_id"] = contributor.id
+            new_comp = models.Component(**data)
+            db.add(new_comp)
+            db.flush()
+            created.components += 1
+            component_index[spec.name] = new_comp
+
+    # ---- Attack techniques --------------------------------------------
+    attack_index: Dict[str, models.AttackTechnique] = {}
+    for spec in bundle.attacks:
+        existing = get_attack_by_name(db, spec.name)
+        if existing:
+            _patch_fields(existing, spec.dict(exclude_unset=True), exclude={"name"})
+            updated.attacks += 1
+            attack_index[spec.name] = existing
+        else:
+            new_atk = models.AttackTechnique(**spec.dict())
+            db.add(new_atk)
+            db.flush()
+            created.attacks += 1
+            attack_index[spec.name] = new_atk
+
+    # ---- CVEs + edges --------------------------------------------------
+    for spec in bundle.cves:
+        cve = get_cve_by_cve_id(db, spec.cve_id)
+        cve_fields = spec.dict(exclude={"affects", "attacks"})
+        if cve:
+            _patch_fields(cve, {k: v for k, v in cve_fields.items() if v is not None}, exclude={"cve_id"})
+            updated.cves += 1
+        else:
+            cve = models.CVE(**cve_fields)
+            db.add(cve)
+            db.flush()
+            created.cves += 1
+
+        # Resolve component links — fall back to a global lookup so partners
+        # can reference assets they haven't restated in this bundle.
+        for comp_name in spec.affects:
+            comp = component_index.get(comp_name) or (
+                db.query(models.Component).filter(models.Component.name == comp_name).first()
+            )
+            if not comp:
+                warnings.append(f"CVE {spec.cve_id}: component '{comp_name}' not found, link skipped")
+                continue
+            if not db.query(models.CVEAffectsComponent).filter_by(
+                cve_id=cve.id, component_id=comp.id
+            ).first():
+                db.add(models.CVEAffectsComponent(
+                    cve_id=cve.id,
+                    component_id=comp.id,
+                    contributed_by_lab_id=contributor.id if contributor else None,
+                ))
+                linked.cve_affects_component += 1
+
+        for atk_name in spec.attacks:
+            atk = attack_index.get(atk_name) or get_attack_by_name(db, atk_name)
+            if not atk:
+                warnings.append(f"CVE {spec.cve_id}: attack '{atk_name}' not found, link skipped")
+                continue
+            if not db.query(models.CVEUsesAttack).filter_by(
+                cve_id=cve.id, attack_id=atk.id
+            ).first():
+                db.add(models.CVEUsesAttack(
+                    cve_id=cve.id,
+                    attack_id=atk.id,
+                    contributed_by_lab_id=contributor.id if contributor else None,
+                ))
+                linked.cve_uses_attack += 1
+
+    db.commit()
+    if contributor:
+        db.refresh(contributor)
+
+    return schemas.ImportResult(
+        lab=schemas.Lab.from_orm(contributor) if contributor else None,
+        created=created,
+        updated=updated,
+        linked=linked,
+        warnings=warnings,
+    )
+
+
+def _patch_fields(obj, fields: dict, exclude: Optional[Set[str]] = None) -> None:
+    """Copy non-None fields from a dict onto an ORM object, skipping `exclude`.
+
+    Used by import to refresh existing rows without overwriting the natural-key
+    column or wiping unspecified attributes.
+    """
+    exclude = exclude or set()
+    for k, v in fields.items():
+        if k in exclude or v is None:
+            continue
+        setattr(obj, k, v)
 
 
 # ---------------------------------------------------------------------------
