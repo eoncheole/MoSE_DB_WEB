@@ -95,6 +95,14 @@ const SEVERITY_TINT = {
   Low:      { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
 };
 
+// Hex equivalents for the MiniMap (it can't read Tailwind classes)
+const MINIMAP_SEVERITY = {
+  Critical: '#EF4444',
+  High:     '#F97316',
+  Medium:   '#EAB308',
+  Low:      '#10B981',
+};
+
 const TYPE_CHROME = {
   lab:       { Icon: FlaskConical, bg: 'bg-white',      border: 'border-gray-200', accent: 'text-gray-500',  pill: 'Lab' },
   attack:    { Icon: Zap,          bg: 'bg-purple-50',  border: 'border-purple-200', accent: 'text-purple-600', pill: 'Attack' },
@@ -289,7 +297,7 @@ const Graph = ({ onLogout, onNavigate }) => {
                   className="!bg-white !border !border-gray-200 !rounded-xl"
                   nodeColor={(n) => {
                     const t = n.data?.type;
-                    if (t === 'cve') return SEVERITY_TINT[n.data?.severity]?.border?.replace('border-', '#') ? '#EF4444' : '#FCA5A5';
+                    if (t === 'cve') return MINIMAP_SEVERITY[n.data?.severity] ?? '#FCA5A5';
                     if (t === 'attack') return '#A855F7';
                     if (t === 'component') return '#3B82F6';
                     return '#9CA3AF';
