@@ -1,7 +1,16 @@
 import React from 'react';
 import { ShieldCheck } from 'lucide-react';
+import clsx from 'clsx';
 
-const Header = ({ onLogout, onNavigate }) => {
+const Header = ({ onLogout, onNavigate, currentView = 'dashboard' }) => {
+  const tabClass = (active) =>
+    clsx(
+      'px-5 py-2 font-medium text-sm rounded-full transition-all',
+      active
+        ? 'text-gray-900 bg-white shadow-sm'
+        : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
+    );
+
   return (
     <header className="premium-glass sticky top-0 z-50 w-full transition-all duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -18,15 +27,24 @@ const Header = ({ onLogout, onNavigate }) => {
           </div>
 
           {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center bg-gray-100/50 p-1 rounded-full backdrop-blur-sm">
-            <button 
-              onClick={() => onNavigate ? onNavigate('dashboard') : window.scrollTo({ top: 0, behavior: 'smooth' })} 
-              className="px-5 py-2 text-gray-900 font-medium text-sm bg-white rounded-full shadow-sm transition-all"
+          <nav className="hidden md:flex items-center bg-gray-100/50 p-1 rounded-full backdrop-blur-sm" role="tablist">
+            <button
+              role="tab"
+              aria-selected={currentView === 'dashboard'}
+              onClick={() => onNavigate && onNavigate('dashboard')}
+              className={tabClass(currentView === 'dashboard')}
             >
               Overview
             </button>
-            <a href="https://mose.kookmin.ac.kr/mose/index.do" target="_blank" rel="noopener noreferrer" className="px-5 py-2 text-gray-500 font-medium text-sm hover:text-gray-900 hover:bg-white/50 rounded-full transition-all">Risks</a>
-            <a href="https://mose.kookmin.ac.kr/mose/index.do" target="_blank" rel="noopener noreferrer" className="px-5 py-2 text-gray-500 font-medium text-sm hover:text-gray-900 hover:bg-white/50 rounded-full transition-all">Network</a>
+            <a href="https://mose.kookmin.ac.kr/mose/index.do" target="_blank" rel="noopener noreferrer" className={tabClass(false)}>Risks</a>
+            <button
+              role="tab"
+              aria-selected={currentView === 'graph'}
+              onClick={() => onNavigate && onNavigate('graph')}
+              className={tabClass(currentView === 'graph')}
+            >
+              Network
+            </button>
           </nav>
 
           {/* Right Actions & Profile Menu */}
