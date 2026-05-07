@@ -1,17 +1,27 @@
-import React, { useState } from 'react';
-import { 
-  User, Lock, Bell, Key, Shield, Save, 
-  ChevronLeft, Camera, Mail, Building 
+import React, { useEffect, useState } from 'react';
+import {
+  User, Lock, Bell, Key, Shield, Save,
+  ChevronLeft, Camera, Mail, Building, CheckCircle2
 } from 'lucide-react';
 import Header from '../components/dashboard/Header';
 
 const Settings = ({ onLogout, onBack }) => {
   const [activeTab, setActiveTab] = useState('general');
   const [isLoading, setIsLoading] = useState(false);
+  const [savedAt, setSavedAt] = useState(0);
+
+  useEffect(() => {
+    if (!savedAt) return;
+    const t = setTimeout(() => setSavedAt(0), 2400);
+    return () => clearTimeout(t);
+  }, [savedAt]);
 
   const handleSave = () => {
     setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 1000);
+    setTimeout(() => {
+      setIsLoading(false);
+      setSavedAt(Date.now());
+    }, 1000);
   };
 
   const NavItem = ({ id, icon: Icon, label }) => (
@@ -161,6 +171,33 @@ const Settings = ({ onLogout, onBack }) => {
                 </div>
               )}
 
+              {/* --- Notifications Tab --- */}
+              {activeTab === 'notifications' && (
+                <div className="space-y-8 animate-fade-in">
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900 mb-1">Notifications</h2>
+                    <p className="text-sm text-gray-500">Choose how MoSE DB alerts you about new threats and changes.</p>
+                  </div>
+
+                  {[
+                    { id: 'critical', title: 'Critical CVEs', desc: 'Immediately notify on any critical vulnerability detection.', defaultChecked: true },
+                    { id: 'weekly', title: 'Weekly digest', desc: 'A summary of all newly detected risks every Monday.', defaultChecked: true },
+                    { id: 'product', title: 'Product updates', desc: 'New features, releases, and platform improvements.', defaultChecked: false },
+                  ].map((row) => (
+                    <div key={row.id} className="flex items-center justify-between py-4 border-b border-gray-100 last:border-0">
+                      <div>
+                        <h4 className="text-sm font-bold text-gray-900">{row.title}</h4>
+                        <p className="text-xs text-gray-500 mt-1">{row.desc}</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" className="sr-only peer" defaultChecked={row.defaultChecked} />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              )}
+
                {/* --- API Tab --- */}
                {activeTab === 'api' && (
                 <div className="space-y-8 animate-fade-in">
@@ -231,6 +268,20 @@ const Settings = ({ onLogout, onBack }) => {
           </div>
         </div>
       </main>
+
+      {/* Save toast */}
+      <div
+        role="status"
+        aria-live="polite"
+        className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[120] transition-all duration-300 ${
+          savedAt ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+        }`}
+      >
+        <div className="flex items-center gap-2 bg-gray-900 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-2xl shadow-gray-900/20">
+          <CheckCircle2 className="w-4 h-4 text-green-400" />
+          Changes saved
+        </div>
+      </div>
     </div>
   );
 };
