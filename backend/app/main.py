@@ -1,54 +1,40 @@
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
-from typing import List
+"""FastAPI entry point.
+
+Routes are split into routers under `app/routers/`. This module wires them up,
+configures CORS + auth, and seeds demo data on startup.
+"""
+
 from datetime import timedelta
-from jose import JWTError, jwt
+from typing import List
 
-from . import models, schemas, crud, database
-from .auth_utils import verify_password, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
 
-# DB 테이블 생성 (개발용 자동 생성)
+from . import crud, database, models, schemas
+from .auth_utils import (
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    create_access_token,
+    verify_password,
+)
+from .deps import get_current_active_user, get_current_admin_user
+from .routers import attacks, components, cves, graph, labs
+
+
+# Schema is owned by Alembic — run `alembic upgrade head` from `backend/`
+# before starting the app. We still call create_all() defensively so a fresh
+# SQLite dev DB without Alembic doesn't 500 on first request; in production
+# (Postgres) you should drop this line and rely on migrations exclusively.
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI(
     title="MoSE DB API",
-    description="Mobility Cybersecurity Lab Vulnerability Database API",
-    version="1.0.0"
+    description="Mobility Cybersecurity Lab — hardware vulnerability graph DB.",
+    version="2.0.0",
 )
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-# --- Dependency: Current User ---
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
-            raise credentials_exception
-        token_data = schemas.TokenData(email=email)
-    except JWTError:
-        raise credentials_exception
-    user = crud.get_user_by_email(db, email=token_data.email)
-    if user is None:
-        raise credentials_exception
-    return user
-
-async def get_current_active_user(current_user: schemas.User = Depends(get_current_user)):
-    return current_user
-
-async def get_current_admin_user(current_user: schemas.User = Depends(get_current_user)):
-    if current_user.email != "admin": # Simple admin check (In real app, use role field)
-        raise HTTPException(status_code=400, detail="Not enough permissions")
-    return current_user
-
-# CORS 설정
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -57,59 +43,187 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- 초기 데이터 주입 (개발 편의용) ---
+# Mount routers
+app.include_router(labs.router)
+app.include_router(components.router)
+app.include_router(attacks.router)
+app.include_router(cves.router)
+app.include_router(graph.router)
+
+
+# ---------------------------------------------------------------------------
+# Startup seed — small connected demo so the dashboard isn't empty on first run
+# ---------------------------------------------------------------------------
+
 @app.on_event("startup")
 def startup_event():
     try:
         db = database.SessionLocal()
-        
-        # 1. Mock CVEs
-        mock_data = [
-            schemas.CVECreate(cve_id="TEST-001", severity="Critical", asset="Test-Server-Alpha", description="Test vulnerability description for demo purposes."),
-            schemas.CVECreate(cve_id="TEST-002", severity="High", asset="Test-Database-Beta", description="Another test vulnerability sample."),
-            schemas.CVECreate(cve_id="TEST-003", severity="Medium", asset="Test-Gateway-01", description="Minor security misconfiguration example."),
-            schemas.CVECreate(cve_id="TEST-004", severity="Low", asset="Test-Workstation-X", description="Low impact informational alert.")
-        ]
-        
         print("Initializing DB Check...")
-        for cve in mock_data:
-            exists = db.query(models.CVE).filter(models.CVE.cve_id == cve.cve_id).first()
-            if not exists:
-                crud.create_cve(db, cve)
-                print(f"Inserted {cve.cve_id}")
-        
-        # 2. Create Default Admin User
-        admin_email = "admin"
-        existing_admin = crud.get_user_by_email(db, admin_email)
-        if not existing_admin:
-            crud.create_user(db, schemas.UserCreate(
-                email=admin_email, 
-                password="admin", 
-                full_name="MoSE Administrator"
-            ))
-            print(f"Created Admin User: {admin_email}")
-                
+
+        # 1. Default lab (idempotent)
+        default_lab_name = "Mobility Cybersecurity Lab"
+        lab = db.query(models.Lab).filter(models.Lab.name == default_lab_name).first()
+        if not lab:
+            lab = models.Lab(
+                name=default_lab_name,
+                affiliation="Kookmin University",
+                contact="https://mose.kookmin.ac.kr/mose/index.do",
+                description="Primary owner of this MoSE DB instance.",
+            )
+            db.add(lab)
+            db.flush()
+            print(f"Inserted lab: {lab.name}")
+
+        # 2. Hardware components
+        seed_components = [
+            {"name": "STM32F407 SoC",  "vendor": "STMicroelectronics", "model": "STM32F407VG",   "type": "MCU"},
+            {"name": "ESP32-WROOM-32", "vendor": "Espressif",          "model": "ESP32-WROOM-32", "type": "SoC"},
+            {"name": "CAN Bus Stack",  "vendor": "Bosch",              "model": "CAN 2.0B",      "type": "Bus"},
+            {"name": "Boot ROM v1.2",  "vendor": "Internal",           "model": "boot-1.2",      "type": "Firmware"},
+        ]
+        component_by_name = {}
+        for spec in seed_components:
+            existing = db.query(models.Component).filter(models.Component.name == spec["name"]).first()
+            if not existing:
+                comp = models.Component(lab_id=lab.id, **spec)
+                db.add(comp)
+                db.flush()
+                component_by_name[spec["name"]] = comp
+                print(f"Inserted component: {comp.name}")
+            else:
+                component_by_name[spec["name"]] = existing
+
+        # 3. Attack techniques
+        seed_attacks = [
+            {"name": "Voltage Glitch",       "category": "Fault Injection", "mitre_id": None,    "description": "Disturb supply voltage to skip instructions."},
+            {"name": "Side-Channel Power",   "category": "Side-channel",    "mitre_id": None,    "description": "Recover keys from power consumption traces."},
+            {"name": "Supply-Chain Implant", "category": "Supply Chain",    "mitre_id": "T1195", "description": "Malicious code introduced upstream of the build."},
+        ]
+        attack_by_name = {}
+        for spec in seed_attacks:
+            existing = db.query(models.AttackTechnique).filter(models.AttackTechnique.name == spec["name"]).first()
+            if not existing:
+                atk = models.AttackTechnique(**spec)
+                db.add(atk)
+                db.flush()
+                attack_by_name[spec["name"]] = atk
+                print(f"Inserted attack: {atk.name}")
+            else:
+                attack_by_name[spec["name"]] = existing
+
+        # 4. CVEs + edges
+        seed_cves = [
+            {
+                "cve_id": "DEMO-CVE-001",
+                "severity": "Critical",
+                "cvss": 9.8,
+                "description": "Glitch-induced bypass of secure boot signature check on STM32F407.",
+                "remediation_script": "# Apply firmware patch v1.3\nsudo flash boot-1.3.bin",
+                "affects": ["STM32F407 SoC", "Boot ROM v1.2"],
+                "attacks": ["Voltage Glitch"],
+            },
+            {
+                "cve_id": "DEMO-CVE-002",
+                "severity": "High",
+                "cvss": 7.4,
+                "description": "Side-channel leakage allows AES key recovery on ESP32 secure element.",
+                "remediation_script": "# Enable hardware DPA mitigations\nesptool.py --dpa-protect",
+                "affects": ["ESP32-WROOM-32"],
+                "attacks": ["Side-Channel Power"],
+            },
+            {
+                "cve_id": "DEMO-CVE-003",
+                "severity": "Medium",
+                "cvss": 5.5,
+                "description": "Compromised tooling injected payload into shipped firmware artifact.",
+                "remediation_script": "# Rebuild from clean toolchain\nmake clean && make release",
+                "affects": ["Boot ROM v1.2"],
+                "attacks": ["Supply-Chain Implant"],
+            },
+        ]
+        for spec in seed_cves:
+            cve = db.query(models.CVE).filter(models.CVE.cve_id == spec["cve_id"]).first()
+            if not cve:
+                cve = models.CVE(
+                    cve_id=spec["cve_id"],
+                    severity=spec["severity"],
+                    cvss=spec["cvss"],
+                    description=spec["description"],
+                    remediation_script=spec["remediation_script"],
+                )
+                db.add(cve)
+                db.flush()
+                print(f"Inserted CVE: {cve.cve_id}")
+
+            for comp_name in spec["affects"]:
+                comp = component_by_name.get(comp_name)
+                if comp and not db.query(models.CVEAffectsComponent).filter_by(
+                    cve_id=cve.id, component_id=comp.id
+                ).first():
+                    db.add(models.CVEAffectsComponent(
+                        cve_id=cve.id, component_id=comp.id, contributed_by_lab_id=lab.id,
+                    ))
+
+            for atk_name in spec["attacks"]:
+                atk = attack_by_name.get(atk_name)
+                if atk and not db.query(models.CVEUsesAttack).filter_by(
+                    cve_id=cve.id, attack_id=atk.id
+                ).first():
+                    db.add(models.CVEUsesAttack(
+                        cve_id=cve.id, attack_id=atk.id, contributed_by_lab_id=lab.id,
+                    ))
+
+        # 5. Component-to-component relation: Boot ROM lives inside the SoC
+        soc = component_by_name.get("STM32F407 SoC")
+        rom = component_by_name.get("Boot ROM v1.2")
+        if soc and rom and not db.query(models.ComponentRelation).filter_by(
+            a_id=soc.id, b_id=rom.id, relation_type="contains"
+        ).first():
+            db.add(models.ComponentRelation(a_id=soc.id, b_id=rom.id, relation_type="contains"))
+
+        # Persist the graph seed first — admin creation hashes a password and
+        # has its own failure modes (bcrypt versions, etc.); we don't want it
+        # rolling back the demo data.
+        db.commit()
+
+        # 6. Default admin user — isolated try so a hashing/IO error here
+        #    leaves the seeded graph intact.
+        try:
+            if not crud.get_user_by_email(db, "admin"):
+                crud.create_user(db, schemas.UserCreate(
+                    email="admin", password="admin", full_name="MoSE Administrator",
+                ))
+                print("Created Admin User: admin")
+        except Exception as e:
+            print(f"Admin user seeding failed (graph data is fine): {e}")
+
         db.close()
     except Exception as e:
         print(f"Startup initialization failed: {e}")
-        # 계속 실행되도록 예외를 잡음 (DB가 아직 준비 안 됐을 수도 있음)
 
-# --- API Endpoints ---
+
+# ---------------------------------------------------------------------------
+# System + auth endpoints (lightweight, kept here)
+# ---------------------------------------------------------------------------
 
 @app.get("/", tags=["System"])
 def read_root():
     return {"message": "MoSE DB Brain is Active", "status": "Online"}
 
-# --- Auth Endpoints ---
+
 @app.post("/users/", response_model=schemas.User, tags=["Auth"])
 def create_user(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
-    db_user = crud.get_user_by_email(db, email=user.email)
-    if db_user:
+    if crud.get_user_by_email(db, email=user.email):
         raise HTTPException(status_code=400, detail="Email already registered")
     return crud.create_user(db=db, user=user)
 
+
 @app.post("/token", response_model=schemas.Token, tags=["Auth"])
-def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(database.get_db)):
+def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(database.get_db),
+):
     user = crud.get_user_by_email(db, form_data.username)
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
@@ -117,25 +231,19 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
+    expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    token = create_access_token(data={"sub": user.email}, expires_delta=expires)
+    return {"access_token": token, "token_type": "bearer"}
+
 
 @app.get("/users/me", response_model=schemas.User, tags=["Auth"])
 async def read_users_me(current_user: schemas.User = Depends(get_current_active_user)):
     return current_user
 
+
 @app.get("/admin/users", response_model=List[schemas.User], tags=["Admin"])
-def read_all_users(current_user: schemas.User = Depends(get_current_admin_user), db: Session = Depends(database.get_db)):
+def read_all_users(
+    db: Session = Depends(database.get_db),
+    _: schemas.User = Depends(get_current_admin_user),
+):
     return db.query(models.User).all()
-
-@app.get("/cves/", response_model=List[schemas.CVE], tags=["Vulnerabilities"])
-def read_cves(skip: int = 0, limit: int = 100, db: Session = Depends(database.get_db)):
-    cves = crud.get_cves(db, skip=skip, limit=limit)
-    return cves
-
-@app.post("/cves/", response_model=schemas.CVE, tags=["Vulnerabilities"])
-def create_cve(cve: schemas.CVECreate, db: Session = Depends(database.get_db), current_user: schemas.User = Depends(get_current_active_user)):
-    return crud.create_cve(db, cve)
