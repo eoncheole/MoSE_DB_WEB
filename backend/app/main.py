@@ -19,7 +19,7 @@ from .auth_utils import (
     verify_password,
 )
 from .deps import get_current_active_user, get_current_admin_user
-from .routers import attacks, components, cves, graph, labs
+from .routers import attacks, components, cves, graph, imports, labs
 
 
 # Schema is owned by Alembic — run `alembic upgrade head` from `backend/`
@@ -49,6 +49,7 @@ app.include_router(components.router)
 app.include_router(attacks.router)
 app.include_router(cves.router)
 app.include_router(graph.router)
+app.include_router(imports.router)
 
 
 # ---------------------------------------------------------------------------
