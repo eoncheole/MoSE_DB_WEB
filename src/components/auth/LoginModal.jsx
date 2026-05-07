@@ -30,14 +30,15 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
   return (
     <>
       {/* Backdrop */}
-      <div 
+      <div
         className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[100] animate-fade-in"
         onClick={onClose}
       />
-      
-      {/* Modal */}
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md z-[101] animate-fade-in">
-        <div className="premium-card bg-white/90 p-8 rounded-[2rem] shadow-2xl border border-white/50 relative overflow-hidden">
+
+      {/* Modal wrapper — flex centers the card so the fadeIn animation's
+          transform doesn't conflict with translate-based centering */}
+      <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
+        <div className="premium-card bg-white/90 p-8 rounded-[2rem] shadow-2xl border border-white/50 relative overflow-hidden w-full max-w-md animate-fade-in pointer-events-auto">
           
           {/* Decorative Background Elements */}
           <div className="absolute -top-10 -right-10 w-32 h-32 bg-blue-100 rounded-full blur-3xl opacity-50"></div>
