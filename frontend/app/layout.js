@@ -2,7 +2,7 @@ import './globals.css';
 
 export const metadata = {
   title: 'MoSE DB - Mobility Cybersecurity Lab',
-  description: 'Intelligence beyond human scale.',
+  description: 'Built for mobility security.',
 };
 
 export default function RootLayout({ children }) {
