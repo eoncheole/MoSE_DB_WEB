@@ -37,7 +37,7 @@ const Landing = ({ onLogin }) => {
 
         {/* Main Title */}
         <h1 className="text-5xl md:text-7xl font-bold tracking-tighter mb-6 max-w-4xl mx-auto hero-text-gradient animate-fade-in opacity-0" style={{ animationDelay: '0.2s' }}>
-          Intelligence beyond <br/>human scale.
+          Built for <br/>mobility security.
         </h1>
 
         {/* Subtitle */}
