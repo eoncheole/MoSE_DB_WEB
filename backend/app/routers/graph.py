@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import crud, database, schemas
-from ..deps import get_current_active_user
+from ..deps import get_current_admin_user
 
 
 router = APIRouter(prefix="/graph", tags=["Graph"])
@@ -23,7 +23,7 @@ def graph_overview(cve_limit: int = 50, db: Session = Depends(database.get_db)):
 def link_components(
     payload: schemas.ComponentRelationCreate,
     db: Session = Depends(database.get_db),
-    _: schemas.User = Depends(get_current_active_user),
+    _: schemas.User = Depends(get_current_admin_user),
 ):
     if not crud.get_component(db, payload.a_id) or not crud.get_component(db, payload.b_id):
         raise HTTPException(status_code=404, detail="Component not found")
