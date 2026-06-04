@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import crud, database, schemas
-from ..deps import get_current_active_user
+from ..deps import get_current_admin_user
 
 
 router = APIRouter(prefix="/labs", tags=["Labs"])
@@ -27,7 +27,7 @@ def get_lab(lab_id: int, db: Session = Depends(database.get_db)):
 def create_lab(
     lab: schemas.LabCreate,
     db: Session = Depends(database.get_db),
-    _: schemas.User = Depends(get_current_active_user),
+    _: schemas.User = Depends(get_current_admin_user),
 ):
     if crud.get_lab_by_name(db, lab.name):
         raise HTTPException(status_code=409, detail="Lab name already exists")
