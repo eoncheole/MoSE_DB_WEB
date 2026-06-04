@@ -1,23 +1,65 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Loader2, AlertCircle } from 'lucide-react';
+import { X, Save, Loader2, AlertCircle, Cpu } from 'lucide-react';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+const EMPTY_FORM = {
+  cve_id: '',
+  severity: 'Medium',
+  description: '',
+  status: 'Active',
+};
 
 export default function CreateCveModal({ isOpen, onClose, onCreated }) {
-  const [formData, setFormData] = useState({
-    cve_id: '',
-    severity: 'Medium',
-    asset: '',
-    description: '',
-    status: 'Active'
-  });
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  // Affected assets are now relations to Component records (the backend dropped
+  // the old free-text `asset` column), so we let the user pick existing
+  // components and link them after the CVE is created.
+  const [components, setComponents] = useState([]);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [isLoadingComponents, setIsLoadingComponents] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
+
+  // Load the component list whenever the modal opens.
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setIsLoadingComponents(true);
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/components/`);
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        if (!cancelled) setComponents(data);
+      } catch {
+        if (!cancelled) setComponents([]);
+      } finally {
+        if (!cancelled) setIsLoadingComponents(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const toggleComponent = (id) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const resetAndClose = () => {
+    setFormData(EMPTY_FORM);
+    setSelectedIds([]);
+    setError(null);
+    onClose();
   };
 
   const handleSubmit = async (e) => {
@@ -26,23 +68,23 @@ export default function CreateCveModal({ isOpen, onClose, onCreated }) {
     setError(null);
 
     try {
-      // Use environment variable if available, otherwise default to localhost
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const token = localStorage.getItem('token'); // Get token
+      const token = localStorage.getItem('token');
+      const authHeaders = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      };
 
-      const res = await fetch(`${apiUrl}/cves/`, {
+      // 1. Create the CVE record.
+      const res = await fetch(`${API_URL}/cves/`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` // Add Auth Header
-        },
+        headers: authHeaders,
         body: JSON.stringify(formData),
       });
 
       if (!res.ok) {
-        // Surface auth/permission failures distinctly. Writes now require an
-        // admin account, so a logged-in non-admin gets 403; an expired/missing
-        // token gets 401. Fall back to the API's `detail` for anything else.
+        // Surface auth/permission failures distinctly. Writes require an admin
+        // account, so a logged-in non-admin gets 403; an expired/missing token
+        // gets 401. Fall back to the API's `detail` for anything else.
         if (res.status === 401) {
           throw new Error('Your session has expired. Please sign in again.');
         }
@@ -58,15 +100,38 @@ export default function CreateCveModal({ isOpen, onClose, onCreated }) {
       }
 
       const newCve = await res.json();
-      onCreated(newCve); // Callback to update parent list
-      onClose(); // Close modal
-      setFormData({ // Reset form
-        cve_id: '',
-        severity: 'Medium',
-        asset: '',
-        description: '',
-        status: 'Active'
-      });
+
+      // 2. Link each selected component to the new CVE.
+      const failedLinks = [];
+      for (const componentId of selectedIds) {
+        const linkRes = await fetch(`${API_URL}/cves/links/components`, {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify({ cve_id: newCve.id, component_id: componentId }),
+        });
+        if (!linkRes.ok) {
+          const comp = components.find(c => c.id === componentId);
+          failedLinks.push(comp?.name || `#${componentId}`);
+        }
+      }
+
+      // 3. Tell the parent, passing the linked component names so the row's
+      //    "Asset" column is populated immediately (the list API would
+      //    otherwise only show them on the next refetch).
+      const linkedNames = components
+        .filter(c => selectedIds.includes(c.id) && !failedLinks.includes(c.name))
+        .map(c => c.name);
+      onCreated({ ...newCve, components: linkedNames });
+
+      if (failedLinks.length) {
+        // CVE was created but some links didn't take — keep the modal open and
+        // tell the user which ones, rather than silently dropping them.
+        setError(`CVE created, but failed to link: ${failedLinks.join(', ')}`);
+        setSelectedIds([]);
+        return;
+      }
+
+      resetAndClose();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -79,15 +144,15 @@ export default function CreateCveModal({ isOpen, onClose, onCreated }) {
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onClick={onClose}
+          onClick={resetAndClose}
           className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
         />
-        
-        <motion.div 
+
+        <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -99,8 +164,8 @@ export default function CreateCveModal({ isOpen, onClose, onCreated }) {
               <h2 className="text-lg font-bold text-gray-900">Add New Vulnerability</h2>
               <p className="text-xs text-gray-500">Register a new CVE into the database</p>
             </div>
-            <button 
-              onClick={onClose}
+            <button
+              onClick={resetAndClose}
               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
@@ -119,7 +184,7 @@ export default function CreateCveModal({ isOpen, onClose, onCreated }) {
             <form id="create-cve-form" onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">CVE ID</label>
-                <input 
+                <input
                   required
                   name="cve_id"
                   value={formData.cve_id}
@@ -132,7 +197,7 @@ export default function CreateCveModal({ isOpen, onClose, onCreated }) {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Severity</label>
-                    <select 
+                    <select
                       name="severity"
                       value={formData.severity}
                       onChange={handleChange}
@@ -146,7 +211,7 @@ export default function CreateCveModal({ isOpen, onClose, onCreated }) {
                 </div>
                 <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Status</label>
-                    <select 
+                    <select
                       name="status"
                       value={formData.status}
                       onChange={handleChange}
@@ -159,21 +224,43 @@ export default function CreateCveModal({ isOpen, onClose, onCreated }) {
                 </div>
               </div>
 
+              {/* Affected components — relational replacement for the old `asset` field */}
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Affected Asset</label>
-                <input 
-                  required
-                  name="asset"
-                  value={formData.asset}
-                  onChange={handleChange}
-                  placeholder="e.g. Server-DB-01"
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                />
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Affected Components</label>
+                {isLoadingComponents ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-400 py-2">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Loading components...
+                  </div>
+                ) : components.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-2">No components available. Add components first.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {components.map(comp => {
+                      const active = selectedIds.includes(comp.id);
+                      return (
+                        <button
+                          type="button"
+                          key={comp.id}
+                          onClick={() => toggleComponent(comp.id)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                            active
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                              : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-blue-300'
+                          }`}
+                        >
+                          <Cpu className="w-3.5 h-3.5" />
+                          {comp.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <p className="text-[11px] text-gray-400 mt-1.5">Select the components this CVE affects (optional).</p>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Description</label>
-                <textarea 
+                <textarea
                   name="description"
                   value={formData.description}
                   onChange={handleChange}
@@ -187,14 +274,14 @@ export default function CreateCveModal({ isOpen, onClose, onCreated }) {
 
           {/* Footer */}
           <div className="p-6 pt-0 flex justify-end gap-3">
-            <button 
+            <button
               type="button"
-              onClick={onClose}
+              onClick={resetAndClose}
               className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
             >
               Cancel
             </button>
-            <button 
+            <button
               type="submit"
               form="create-cve-form"
               disabled={isSubmitting}
