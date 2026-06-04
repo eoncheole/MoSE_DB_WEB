@@ -4,6 +4,7 @@ Routes are split into routers under `app/routers/`. This module wires them up,
 configures CORS + auth, and seeds demo data on startup.
 """
 
+import os
 from datetime import timedelta
 from typing import List
 
@@ -34,10 +35,17 @@ app = FastAPI(
     version="2.0.0",
 )
 
-# CORS
+# CORS — origins come from CORS_ORIGINS (comma-separated), e.g.
+#   CORS_ORIGINS=http://localhost:3000,https://mose.example.com
+# Note: the wildcard "*" is intentionally NOT a default here — browsers reject
+# "*" together with allow_credentials=True, which would silently break
+# authenticated requests. Set explicit origins instead.
+_cors_origins = [
+    o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -190,12 +198,22 @@ def startup_event():
 
         # 6. Default admin user — isolated try so a hashing/IO error here
         #    leaves the seeded graph intact.
+        #    Credentials come from the environment. SEED_ADMIN=false disables
+        #    seeding entirely (recommended once a real admin exists); otherwise
+        #    set ADMIN_EMAIL / ADMIN_PASSWORD instead of relying on weak defaults.
         try:
-            if not crud.get_user_by_email(db, "admin"):
-                crud.create_user(db, schemas.UserCreate(
-                    email="admin", password="admin", full_name="MoSE Administrator",
-                ))
-                print("Created Admin User: admin")
+            seed_admin = os.getenv("SEED_ADMIN", "true").lower() not in ("false", "0", "no")
+            if seed_admin:
+                admin_email = os.getenv("ADMIN_EMAIL", "admin")
+                admin_password = os.getenv("ADMIN_PASSWORD", "admin")
+                if not crud.get_user_by_email(db, admin_email):
+                    crud.create_user(db, schemas.UserCreate(
+                        email=admin_email, password=admin_password,
+                        full_name="MoSE Administrator",
+                    ))
+                    print(f"Created Admin User: {admin_email}")
+                    if admin_password == "admin":
+                        print("WARNING: default admin password in use — set ADMIN_PASSWORD.")
         except Exception as e:
             print(f"Admin user seeding failed (graph data is fine): {e}")
 
