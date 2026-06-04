@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from .. import crud, database, schemas
-from ..deps import get_current_active_user
+from ..deps import get_current_admin_user
 
 
 router = APIRouter(prefix="/import", tags=["Import"])
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/import", tags=["Import"])
 def import_bundle(
     bundle: schemas.BundleImport,
     db: Session = Depends(database.get_db),
-    _: schemas.User = Depends(get_current_active_user),
+    _: schemas.User = Depends(get_current_admin_user),
 ):
     """Upsert a partner bundle (lab + components + attacks + CVEs + edges).
 
