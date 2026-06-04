@@ -418,9 +418,17 @@ def get_user_by_email(db: Session, email: str):
     return db.query(models.User).filter(models.User.email == email).first()
 
 
-def create_user(db: Session, user: schemas.UserCreate):
+def create_user(db: Session, user: schemas.UserCreate, role: str = "user"):
+    # `role` is a server-side argument only — it is NOT part of UserCreate, so a
+    # client hitting the public POST /users/ endpoint can never grant itself a
+    # privileged role. Admin accounts are provisioned by the startup seed.
     hashed_password = get_password_hash(user.password)
-    db_user = models.User(email=user.email, hashed_password=hashed_password, full_name=user.full_name)
+    db_user = models.User(
+        email=user.email,
+        hashed_password=hashed_password,
+        full_name=user.full_name,
+        role=role,
+    )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
