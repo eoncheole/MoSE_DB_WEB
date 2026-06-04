@@ -8,9 +8,12 @@ import os
 from datetime import timedelta
 from typing import List
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from . import crud, database, models, schemas
@@ -24,16 +27,28 @@ from .routers import attacks, components, cves, graph, imports, labs
 
 
 # Schema is owned by Alembic — run `alembic upgrade head` from `backend/`
-# before starting the app. We still call create_all() defensively so a fresh
-# SQLite dev DB without Alembic doesn't 500 on first request; in production
-# (Postgres) you should drop this line and rely on migrations exclusively.
-models.Base.metadata.create_all(bind=database.engine)
+# before starting the app. We still call create_all() defensively for a fresh
+# SQLite dev DB without Alembic so it doesn't 500 on first request. In
+# production (Postgres) the schema is owned by migrations, so we skip this and
+# rely on `alembic upgrade head` exclusively.
+if database.SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+    models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI(
     title="MoSE DB API",
     description="Mobility Cybersecurity Lab — hardware vulnerability graph DB.",
     version="2.0.0",
 )
+
+# Rate limiting — primarily to slow brute-force attempts against /token.
+# Default in-memory storage is fine for a single worker; point RATELIMIT_STORAGE_URI
+# at the Redis service for multi-worker deployments.
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri=os.getenv("RATELIMIT_STORAGE_URI"),
+)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS — origins come from CORS_ORIGINS (comma-separated), e.g.
 #   CORS_ORIGINS=http://localhost:3000,https://mose.example.com
