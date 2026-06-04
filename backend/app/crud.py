@@ -95,7 +95,11 @@ def create_attack(db: Session, attack: schemas.AttackTechniqueCreate) -> models.
 # ---------------------------------------------------------------------------
 
 def get_cves(db: Session, skip: int = 0, limit: int = 100, severity: Optional[str] = None) -> List[models.CVE]:
-    q = db.query(models.CVE)
+    # Eager-load affected components so the list endpoint can include their
+    # names (the "Asset" column) without an N+1 query per row.
+    q = db.query(models.CVE).options(
+        joinedload(models.CVE.component_links).joinedload(models.CVEAffectsComponent.component)
+    )
     if severity:
         q = q.filter(models.CVE.severity == severity)
     return q.order_by(models.CVE.created_at.desc()).offset(skip).limit(limit).all()
