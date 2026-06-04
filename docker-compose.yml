@@ -24,7 +24,9 @@ services:
       - DATABASE_URL=postgresql://mose:secure_password@db/mose_db
       - REDIS_URL=redis://redis:6379/0
       # Security — set these in a .env file (see .env.example); do not ship defaults.
-      - SECRET_KEY=${SECRET_KEY:-dev-only-insecure-secret-change-me}
+      # SECRET_KEY has no fallback on purpose: an unset value stops the backend
+      # from booting (compose also warns the variable is blank).
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY must be set (see .env.example)}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
       - SEED_ADMIN=${SEED_ADMIN:-true}
       - ADMIN_EMAIL=${ADMIN_EMAIL:-admin}
