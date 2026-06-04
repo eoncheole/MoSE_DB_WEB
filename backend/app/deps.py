@@ -44,7 +44,9 @@ async def get_current_active_user(current_user: schemas.User = Depends(get_curre
 
 
 async def get_current_admin_user(current_user: schemas.User = Depends(get_current_user)):
-    # TODO: switch to checking the `role` column once admin provisioning is in place.
-    if current_user.email != "admin":
-        raise HTTPException(status_code=400, detail="Not enough permissions")
+    # Authorize on the `role` column, not the email string. An email-based check
+    # is bypassable: registration is public, so anyone could sign up as "admin"
+    # (especially if seeding is disabled and no admin row exists yet).
+    if getattr(current_user, "role", "user") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
     return current_user
