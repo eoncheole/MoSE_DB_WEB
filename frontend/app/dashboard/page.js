@@ -9,8 +9,7 @@ import ThreatChart from '@/components/dashboard/ThreatChart';
 import Footer from '@/components/layout/Footer';
 import DetailPanel from '@/components/dashboard/DetailPanel';
 import CreateCveModal from '@/components/dashboard/CreateCveModal';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { API_URL } from '@/lib/api';
 
 // Backend CVE shape -> flat row the table/detail panel render.
 // `id` stays numeric (used for detail/link API calls); `cveId` is the display
