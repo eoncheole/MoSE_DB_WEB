@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import crud, database, schemas
-from ..deps import get_current_active_user
+from ..deps import get_current_admin_user
 
 
 router = APIRouter(prefix="/cves", tags=["Vulnerabilities"])
@@ -47,7 +47,7 @@ def get_cve_graph(cve_id: int, db: Session = Depends(database.get_db)):
 def create_cve(
     cve: schemas.CVECreate,
     db: Session = Depends(database.get_db),
-    _: schemas.User = Depends(get_current_active_user),
+    _: schemas.User = Depends(get_current_admin_user),
 ):
     if crud.get_cve_by_cve_id(db, cve.cve_id):
         raise HTTPException(status_code=409, detail="CVE id already exists")
@@ -63,7 +63,7 @@ def create_cve(
 def link_cve_to_component(
     payload: schemas.CVEAffectsComponentCreate,
     db: Session = Depends(database.get_db),
-    _: schemas.User = Depends(get_current_active_user),
+    _: schemas.User = Depends(get_current_admin_user),
 ):
     if not crud.get_cve(db, payload.cve_id):
         raise HTTPException(status_code=404, detail="CVE not found")
@@ -78,7 +78,7 @@ def link_cve_to_component(
 def link_cve_to_attack(
     payload: schemas.CVEUsesAttackCreate,
     db: Session = Depends(database.get_db),
-    _: schemas.User = Depends(get_current_active_user),
+    _: schemas.User = Depends(get_current_admin_user),
 ):
     if not crud.get_cve(db, payload.cve_id):
         raise HTTPException(status_code=404, detail="CVE not found")
