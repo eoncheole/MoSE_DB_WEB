@@ -114,6 +114,16 @@ class CVE(CVEBase):
         orm_mode = True
 
 
+class CVESummary(CVE):
+    """List-row shape: a CVE plus the names of the components it affects.
+
+    The frontend renders these names as the "Asset" column without needing a
+    second round-trip per row. Built explicitly in the router (the ORM exposes
+    link objects, not bare names), so it is not populated via `from_orm`.
+    """
+    components: List[str] = Field(default_factory=list)
+
+
 # ---------------------------------------------------------------------------
 # Edges — outgoing shapes for graph reads
 # ---------------------------------------------------------------------------
