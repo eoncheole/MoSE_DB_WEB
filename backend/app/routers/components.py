@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import crud, database, schemas
-from ..deps import get_current_active_user
+from ..deps import get_current_admin_user
 
 
 router = APIRouter(prefix="/components", tags=["Components"])
@@ -32,6 +32,6 @@ def get_component(component_id: int, db: Session = Depends(database.get_db)):
 def create_component(
     component: schemas.ComponentCreate,
     db: Session = Depends(database.get_db),
-    _: schemas.User = Depends(get_current_active_user),
+    _: schemas.User = Depends(get_current_admin_user),
 ):
     return crud.create_component(db, component)
