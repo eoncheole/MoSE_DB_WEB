@@ -40,7 +40,21 @@ export default function CreateCveModal({ isOpen, onClose, onCreated }) {
       });
 
       if (!res.ok) {
-        throw new Error('Failed to create CVE');
+        // Surface auth/permission failures distinctly. Writes now require an
+        // admin account, so a logged-in non-admin gets 403; an expired/missing
+        // token gets 401. Fall back to the API's `detail` for anything else.
+        if (res.status === 401) {
+          throw new Error('Your session has expired. Please sign in again.');
+        }
+        if (res.status === 403) {
+          throw new Error('You do not have permission to add records. This action requires an admin account.');
+        }
+        let detail = 'Failed to create CVE';
+        try {
+          const data = await res.json();
+          if (data?.detail) detail = typeof data.detail === 'string' ? data.detail : detail;
+        } catch { /* response had no JSON body */ }
+        throw new Error(detail);
       }
 
       const newCve = await res.json();
