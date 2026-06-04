@@ -10,6 +10,25 @@ import Footer from '@/components/layout/Footer';
 import DetailPanel from '@/components/dashboard/DetailPanel';
 import CreateCveModal from '@/components/dashboard/CreateCveModal';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+// Backend CVE shape -> flat row the table/detail panel render.
+// `id` stays numeric (used for detail/link API calls); `cveId` is the display
+// string; `asset` is the affected-component names (the relational replacement
+// for the old single `asset` string column).
+const mapCve = (item) => {
+  const components = item.components || [];
+  return {
+    id: item.id,
+    cveId: item.cve_id,
+    severity: item.severity,
+    description: item.description,
+    status: item.status,
+    components,
+    asset: components.length ? components.join(', ') : '—',
+  };
+};
+
 export default function Dashboard() {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
@@ -22,11 +41,7 @@ export default function Dashboard() {
   const [currentUser, setCurrentUser] = useState(null); // Initialize state
 
   const handleCveCreated = (newCve) => {
-    const mapped = {
-        id: newCve.cve_id,
-        severity: newCve.severity,
-        asset: newCve.asset
-    };
+    const mapped = mapCve(newCve);
     setFullData(prev => [mapped, ...prev]);
     if (searchTerm === '') {
         setCveList(prev => [mapped, ...prev]);
@@ -42,7 +57,7 @@ export default function Dashboard() {
         // 1. Fetch User Info if token exists
         if (token) {
             try {
-                const userRes = await fetch('http://localhost:8000/users/me', {
+                const userRes = await fetch(`${API_URL}/users/me`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (userRes.ok) {
@@ -55,16 +70,12 @@ export default function Dashboard() {
         }
 
         // 2. Fetch CVEs
-        const res = await fetch('http://localhost:8000/cves/');
+        const res = await fetch(`${API_URL}/cves/`);
         if (!res.ok) throw new Error('Failed to fetch data');
         const data = await res.json();
-        
+
         // 데이터 포맷 매핑 (Backend Schema -> Frontend UI)
-        const mappedData = data.map(item => ({
-            id: item.cve_id,
-            severity: item.severity,
-            asset: item.asset
-        }));
+        const mappedData = data.map(mapCve);
 
         setFullData(mappedData);
         setCveList(mappedData);
@@ -90,8 +101,8 @@ export default function Dashboard() {
     if (term === '') {
         setCveList(fullData);
     } else {
-        const filtered = fullData.filter(item => 
-            item.id.toLowerCase().includes(term.toLowerCase()) || 
+        const filtered = fullData.filter(item =>
+            item.cveId.toLowerCase().includes(term.toLowerCase()) ||
             item.asset.toLowerCase().includes(term.toLowerCase())
         );
         setCveList(filtered);
@@ -280,7 +291,7 @@ export default function Dashboard() {
                                     onClick={() => setSelectedCve(item)}
                                     className="group hover:bg-blue-50/30 transition-colors cursor-pointer"
                                 >
-                                    <td className="px-8 py-5 font-mono font-semibold text-gray-700 group-hover:text-blue-600">{item.id}</td>
+                                    <td className="px-8 py-5 font-mono font-semibold text-gray-700 group-hover:text-blue-600">{item.cveId}</td>
                                     <td className="px-6 py-5">
                                         <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold border ${
                                             item.severity === 'Critical' ? 'bg-red-50 text-red-600 border-red-100' : 
