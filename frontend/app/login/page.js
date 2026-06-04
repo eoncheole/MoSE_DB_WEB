@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShieldCheck, Lock, User, Loader2, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { API_URL } from '@/lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,15 +22,12 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      // Use environment variable if available, otherwise default to localhost
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      
       // FormData for OAuth2
       const body = new URLSearchParams();
       body.append('username', formData.email);
       body.append('password', formData.password);
 
-      const res = await fetch(`${apiUrl}/token`, {
+      const res = await fetch(`${API_URL}/token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
