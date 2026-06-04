@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from .. import crud, database, schemas
@@ -12,8 +12,8 @@ router = APIRouter(prefix="/cves", tags=["Vulnerabilities"])
 
 @router.get("/", response_model=List[schemas.CVESummary])
 def list_cves(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
     severity: Optional[str] = None,
     db: Session = Depends(database.get_db),
 ):
