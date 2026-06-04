@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, User, Save, Trash2, Plus, ArrowLeft, Loader2, Search, Settings as SettingsIcon } from 'lucide-react';
 import Footer from '@/components/layout/Footer';
+import { API_URL } from '@/lib/api';
 
 export default function Settings() {
   const router = useRouter();
@@ -34,20 +35,18 @@ export default function Settings() {
       }
 
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-        
         // 1. Get My Profile
-        const res = await fetch(`${apiUrl}/users/me`, {
+        const res = await fetch(`${API_URL}/users/me`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        
+
         if (res.ok) {
           const userData = await res.json();
           setUser(userData);
 
           // 2. If Admin, fetch all users
-          if (userData.email === 'admin') {
-            const usersRes = await fetch(`${apiUrl}/admin/users`, {
+          if (userData.role === 'admin') {
+            const usersRes = await fetch(`${API_URL}/admin/users`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (usersRes.ok) {
@@ -72,8 +71,7 @@ export default function Settings() {
     e.preventDefault();
     const token = localStorage.getItem('token');
     try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-        const res = await fetch(`${apiUrl}/users/`, {
+        const res = await fetch(`${API_URL}/users/`, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
@@ -141,7 +139,7 @@ export default function Settings() {
                     >
                         Preferences
                     </button>
-                    {user?.email === 'admin' && (
+                    {user?.role === 'admin' && (
                         <button 
                             onClick={() => setActiveTab('users')}
                             className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'users' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
@@ -186,14 +184,14 @@ export default function Settings() {
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Role</label>
                                     <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                        {user?.email === 'admin' ? 'Administrator' : 'Standard User'}
+                                        {user?.role === 'admin' ? 'Administrator' : 'Standard User'}
                                     </span>
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {activeTab === 'users' && user?.email === 'admin' && (
+                    {activeTab === 'users' && user?.role === 'admin' && (
                         <div className="p-0">
                             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
                                 <div>
@@ -224,12 +222,12 @@ export default function Settings() {
                                                 <td className="px-6 py-4 text-sm font-medium text-gray-900">{u.full_name}</td>
                                                 <td className="px-6 py-4 text-sm text-gray-600">{u.email}</td>
                                                 <td className="px-6 py-4">
-                                                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${u.email === 'admin' ? 'bg-purple-50 text-purple-700 border border-purple-100' : 'bg-green-50 text-green-700 border border-green-100'}`}>
-                                                        {u.email === 'admin' ? 'Admin' : 'User'}
+                                                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${u.role === 'admin' ? 'bg-purple-50 text-purple-700 border border-purple-100' : 'bg-green-50 text-green-700 border border-green-100'}`}>
+                                                        {u.role === 'admin' ? 'Admin' : 'User'}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
-                                                    {u.email !== 'admin' && (
+                                                    {u.role !== 'admin' && (
                                                         <button className="text-gray-400 hover:text-red-600 transition-colors">
                                                             <Trash2 className="w-4 h-4" />
                                                         </button>
