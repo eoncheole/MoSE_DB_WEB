@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, User, Save, Trash2, Plus, ArrowLeft, Loader2, Search, Settings as SettingsIcon } from 'lucide-react';
 import Footer from '@/components/layout/Footer';
 import { API_URL } from '@/lib/api';
 
-export default function Settings() {
+function Settings() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') || 'profile';
@@ -329,5 +329,18 @@ export default function Settings() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+// useSearchParams() requires a Suspense boundary for static prerendering.
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    }>
+      <Settings />
+    </Suspense>
   );
 }
