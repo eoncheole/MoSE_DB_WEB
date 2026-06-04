@@ -10,14 +10,22 @@ from ..deps import get_current_admin_user
 router = APIRouter(prefix="/cves", tags=["Vulnerabilities"])
 
 
-@router.get("/", response_model=List[schemas.CVE])
+@router.get("/", response_model=List[schemas.CVESummary])
 def list_cves(
     skip: int = 0,
     limit: int = 100,
     severity: Optional[str] = None,
     db: Session = Depends(database.get_db),
 ):
-    return crud.get_cves(db, skip=skip, limit=limit, severity=severity)
+    cves = crud.get_cves(db, skip=skip, limit=limit, severity=severity)
+    # Attach affected-component names so the dashboard's "Asset" column has data.
+    return [
+        schemas.CVESummary(
+            **schemas.CVE.from_orm(cve).dict(),
+            components=[link.component.name for link in cve.component_links if link.component],
+        )
+        for cve in cves
+    ]
 
 
 @router.get("/{cve_id}", response_model=schemas.CVE)
