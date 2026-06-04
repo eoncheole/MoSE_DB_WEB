@@ -240,13 +240,17 @@ export default function Dashboard() {
                     <button className="p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
                         <SlidersHorizontal className="w-5 h-5" />
                     </button>
-                    <button 
-                        onClick={() => setIsCreateModalOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 hover:shadow-xl transition-all"
-                    >
-                        <Plus className="w-4 h-4" />
-                        <span className="hidden md:inline">Add</span>
-                    </button>
+                    {/* Writes require an admin account (backend returns 403
+                        otherwise), so only show the Add button to admins. */}
+                    {currentUser?.role === 'admin' && (
+                      <button
+                          onClick={() => setIsCreateModalOpen(true)}
+                          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 hover:shadow-xl transition-all"
+                      >
+                          <Plus className="w-4 h-4" />
+                          <span className="hidden md:inline">Add</span>
+                      </button>
+                    )}
                 </div>
             </div>
             <div className="overflow-x-auto">
