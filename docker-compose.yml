@@ -21,7 +21,8 @@ services:
       - db
       - redis
     environment:
-      - DATABASE_URL=postgresql://mose:secure_password@db/mose_db
+      # Password comes from POSTGRES_PASSWORD (.env) — kept in sync with the db service below.
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-mose}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set (see .env.example)}@db/${POSTGRES_DB:-mose_db}
       - REDIS_URL=redis://redis:6379/0
       # Security — set these in a .env file (see .env.example); do not ship defaults.
       # SECRET_KEY has no fallback on purpose: an unset value stops the backend
@@ -38,9 +39,9 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_USER=mose
-      - POSTGRES_PASSWORD=secure_password
-      - POSTGRES_DB=mose_db
+      - POSTGRES_USER=${POSTGRES_USER:-mose}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set (see .env.example)}
+      - POSTGRES_DB=${POSTGRES_DB:-mose_db}
     ports:
       - "5432:5432"
 
