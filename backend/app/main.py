@@ -261,7 +261,9 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(database.get_db)
 
 
 @app.post("/token", response_model=schemas.Token, tags=["Auth"])
+@limiter.limit(os.getenv("TOKEN_RATELIMIT", "10/minute"))
 def login_for_access_token(
+    request: Request,  # required by slowapi to read the client address
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(database.get_db),
 ):
@@ -288,3 +290,22 @@ def read_all_users(
     _: schemas.User = Depends(get_current_admin_user),
 ):
     return db.query(models.User).all()
+
+
+@app.delete("/admin/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin"])
+def delete_user(
+    user_id: int,
+    db: Session = Depends(database.get_db),
+    current_admin: schemas.User = Depends(get_current_admin_user),
+):
+    target = db.query(models.User).filter(models.User.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if target.id == current_admin.id:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
+    if target.role == "admin":
+        # Protect admin accounts from deletion via this endpoint.
+        raise HTTPException(status_code=400, detail="Admin accounts cannot be deleted")
+    db.delete(target)
+    db.commit()
+    return None
