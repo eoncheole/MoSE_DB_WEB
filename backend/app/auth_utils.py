@@ -6,10 +6,17 @@ from typing import Optional
 from jose import JWTError, jwt
 
 # Secret Settings — read from the environment.
-# In dev (no SECRET_KEY set) we fall back to a clearly-insecure default so the
-# app still boots; in production you MUST set SECRET_KEY, or anyone who knows
-# this string can forge a token for any user.
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-insecure-secret-change-me")
+# SECRET_KEY is mandatory: it signs every JWT, so a missing or guessable value
+# lets anyone forge a token for any user. Rather than fall back to an insecure
+# default we refuse to boot, forcing an explicit value in every environment.
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError(
+        "SECRET_KEY environment variable is not set. The app will not start "
+        "without it. Generate one with:\n"
+        "    python -c \"import secrets; print(secrets.token_urlsafe(48))\"\n"
+        "and set it in your environment (or .env — see .env.example)."
+    )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
