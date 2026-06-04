@@ -1,6 +1,6 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from .. import crud, database, schemas
@@ -11,7 +11,11 @@ router = APIRouter(prefix="/attacks", tags=["Attacks"])
 
 
 @router.get("/", response_model=List[schemas.AttackTechnique])
-def list_attacks(skip: int = 0, limit: int = 200, db: Session = Depends(database.get_db)):
+def list_attacks(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=500),
+    db: Session = Depends(database.get_db),
+):
     return crud.get_attacks(db, skip=skip, limit=limit)
 
 
