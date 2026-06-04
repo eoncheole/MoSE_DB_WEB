@@ -206,14 +206,21 @@ def startup_event():
             if seed_admin:
                 admin_email = os.getenv("ADMIN_EMAIL", "admin")
                 admin_password = os.getenv("ADMIN_PASSWORD", "admin")
-                if not crud.get_user_by_email(db, admin_email):
+                existing_admin = crud.get_user_by_email(db, admin_email)
+                if not existing_admin:
                     crud.create_user(db, schemas.UserCreate(
                         email=admin_email, password=admin_password,
                         full_name="MoSE Administrator",
-                    ))
+                    ), role="admin")
                     print(f"Created Admin User: {admin_email}")
                     if admin_password == "admin":
                         print("WARNING: default admin password in use — set ADMIN_PASSWORD.")
+                elif existing_admin.role != "admin":
+                    # Backfill DBs seeded before role-based authz existed, where
+                    # the admin row was created with the default "user" role.
+                    existing_admin.role = "admin"
+                    db.commit()
+                    print(f"Upgraded {admin_email} to role=admin")
         except Exception as e:
             print(f"Admin user seeding failed (graph data is fine): {e}")
 
