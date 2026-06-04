@@ -37,7 +37,7 @@ export default function DetailPanel({ isOpen, onClose, cve }) {
                     <Shield className="w-6 h-6" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-gray-900">{cve.id}</h2>
+                    <h2 className="text-xl font-bold text-gray-900">{cve.cveId}</h2>
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Vulnerability Details</p>
                   </div>
                 </div>
