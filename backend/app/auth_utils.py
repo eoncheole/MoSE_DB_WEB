@@ -1,12 +1,17 @@
+import os
+
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 
-# Secret Settings (In production, move to .env)
-SECRET_KEY = "mose_secret_key_change_this_in_production"
+# Secret Settings — read from the environment.
+# In dev (no SECRET_KEY set) we fall back to a clearly-insecure default so the
+# app still boots; in production you MUST set SECRET_KEY, or anyone who knows
+# this string can forge a token for any user.
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-insecure-secret-change-me")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
