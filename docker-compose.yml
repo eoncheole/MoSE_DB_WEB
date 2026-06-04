@@ -23,6 +23,12 @@ services:
     environment:
       - DATABASE_URL=postgresql://mose:secure_password@db/mose_db
       - REDIS_URL=redis://redis:6379/0
+      # Security — set these in a .env file (see .env.example); do not ship defaults.
+      - SECRET_KEY=${SECRET_KEY:-dev-only-insecure-secret-change-me}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - SEED_ADMIN=${SEED_ADMIN:-true}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
 
   # The Memory (PostgreSQL)
   db:
