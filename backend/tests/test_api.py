@@ -95,3 +95,40 @@ def test_import_bundle_is_idempotent(client, admin_token):
 def test_import_bundle_requires_admin(client, user_token):
     res = client.post("/import/bundle", headers=_auth(user_token), json={"cves": []})
     assert res.status_code == 403
+
+
+def test_admin_can_delete_normal_user(client, admin_token):
+    created = client.post("/users/", json={"email": "todelete@example.com", "password": "pw12345"})
+    assert created.status_code == 200
+    uid = created.json()["id"]
+    res = client.delete(f"/admin/users/{uid}", headers=_auth(admin_token))
+    assert res.status_code == 204
+
+
+def test_admin_cannot_delete_self(client, admin_token):
+    me = client.get("/users/me", headers=_auth(admin_token)).json()
+    res = client.delete(f"/admin/users/{me['id']}", headers=_auth(admin_token))
+    assert res.status_code == 400
+
+
+def test_non_admin_cannot_delete_user(client, user_token):
+    created = client.post("/users/", json={"email": "victim@example.com", "password": "pw12345"})
+    uid = created.json()["id"]
+    res = client.delete(f"/admin/users/{uid}", headers=_auth(user_token))
+    assert res.status_code == 403
+
+
+def test_list_limit_is_capped(client):
+    # Over-large limit is rejected by validation rather than served.
+    res = client.get("/cves/", params={"limit": 100000})
+    assert res.status_code == 422
+
+
+def test_token_is_rate_limited(client):
+    # Repeated login attempts from the same client eventually hit the limiter.
+    # Keep this last: it exhausts the per-minute /token budget for this IP.
+    statuses = [
+        client.post("/token", data={"username": "nobody", "password": "wrong"}).status_code
+        for _ in range(20)
+    ]
+    assert 429 in statuses
