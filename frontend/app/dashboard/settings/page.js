@@ -95,6 +95,29 @@ function Settings() {
     }
   };
 
+  const handleDeleteUser = async (target) => {
+    if (!confirm(`Delete user "${target.email}"? This cannot be undone.`)) return;
+    const token = localStorage.getItem('token');
+    try {
+        const res = await fetch(`${API_URL}/admin/users/${target.id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (res.status === 204) {
+            setUserList(prev => prev.filter(u => u.id !== target.id));
+        } else {
+            let detail = 'Failed to delete user.';
+            try {
+                const data = await res.json();
+                if (data?.detail) detail = data.detail;
+            } catch { /* no body */ }
+            alert(detail);
+        }
+    } catch (err) {
+        alert("Error deleting user");
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     router.push('/login');
@@ -228,7 +251,10 @@ function Settings() {
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
                                                     {u.role !== 'admin' && (
-                                                        <button className="text-gray-400 hover:text-red-600 transition-colors">
+                                                        <button
+                                                            onClick={() => handleDeleteUser(u)}
+                                                            className="text-gray-400 hover:text-red-600 transition-colors"
+                                                        >
                                                             <Trash2 className="w-4 h-4" />
                                                         </button>
                                                     )}
