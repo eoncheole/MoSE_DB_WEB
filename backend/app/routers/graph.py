@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from .. import crud, database, schemas
@@ -9,7 +9,7 @@ router = APIRouter(prefix="/graph", tags=["Graph"])
 
 
 @router.get("/overview", response_model=schemas.GraphOverview)
-def graph_overview(cve_limit: int = 50, db: Session = Depends(database.get_db)):
+def graph_overview(cve_limit: int = Query(50, ge=1, le=200), db: Session = Depends(database.get_db)):
     """Flat node/edge payload for the visualization view.
 
     `cve_limit` caps the number of CVEs included (most recent first); every
