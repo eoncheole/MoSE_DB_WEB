@@ -1,6 +1,6 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from .. import crud, database, schemas
@@ -11,7 +11,11 @@ router = APIRouter(prefix="/labs", tags=["Labs"])
 
 
 @router.get("/", response_model=List[schemas.Lab])
-def list_labs(skip: int = 0, limit: int = 100, db: Session = Depends(database.get_db)):
+def list_labs(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(database.get_db),
+):
     return crud.get_labs(db, skip=skip, limit=limit)
 
 
